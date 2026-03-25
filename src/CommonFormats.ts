@@ -133,6 +133,13 @@ const CommonFormats = {
         "text/x-python",
         Category.CODE
     ),
+    CSS: new FormatDefinition(
+        "CSS Stylesheet",
+        "css",
+        "css",
+        "text/css",
+        Category.CODE
+    ),
     SH: new FormatDefinition(
         "Shell Script",
         "sh",
