@@ -1,22 +1,93 @@
-# [Convert to it!](https://convert.to.it/)
-**Truly universal online file converter.**
+# C2A-UI — Convert to Any (UI Fork)
 
-Many online file conversion tools are **boring** and **insecure**. They only allow conversion between two formats in the same medium (images to images, videos to videos, etc.), and they require that you _upload your files to some server_.
+> **This is a community fork of [p2r3/convert](https://github.com/p2r3/convert) — the Convert to it! project.**  
+> Upstream: https://github.com/p2r3/convert  
+> Fork: https://github.com/Hamguy21/C2A-UI
 
-This is not just terrible for privacy, it's also incredibly lame. What if you _really_ need to convert an AVI video to a PDF document? Try to find an online tool for that, I dare you.
+---
 
-[Convert.to.it](https://convert.to.it/) aims to be a tool that "just works". You're almost _guaranteed_ to get an output - perhaps not always the one you expected, but it'll try its best to not leave you hanging.
+![C2A-UI screenshot](https://github.com/user-attachments/assets/0ff54ae0-5f62-4f67-9bdd-1c2439aa752d)
 
-For a semi-technical overview of this tool, check out the video: https://youtu.be/btUbcsTbVA8
+**Truly universal browser-based file converter — no uploads, no servers, fully private.**
+
+Most online file conversion tools only handle files within the same medium (images→images, videos→videos) and require uploading your files to a remote server. C2A-UI inherits the original project's goal: convert **anything to anything**, entirely on-device, in your browser.
+
+For a semi-technical overview of the upstream project, see: https://youtu.be/btUbcsTbVA8
+
+## About this fork
+
+C2A-UI is a fork of [p2r3/convert](https://github.com/p2r3/convert) that adds an **MCP (Model Context Protocol) server**, a significantly reworked UI, and an improved build and caching pipeline on top of the upstream project. The fork keeps all upstream format handlers and the `TraversionGraph` conversion engine intact.
+
+### Changes vs upstream
+
+#### 🤖 MCP server (`mcp/`)
+
+A full stdio MCP server (`mcp/server.mjs`) lets LLMs and MCP clients interact with the converter via the Model Context Protocol. It launches a headless browser against either a Vite dev server or the Docker container and exposes 10 tools:
+
+| Tool | Description |
+|---|---|
+| `list_handlers` | Lists registered handlers and their format counts |
+| `list_formats` | Lists supported formats, filterable by direction / handler / MIME |
+| `detect_input_formats` | Ranks likely input formats for a file path, MIME type, or extension |
+| `list_output_options` | Lists reachable output formats for a specific input, ranked by route |
+| `plan_conversion` | Finds a conversion path using the app's traversal logic |
+| `preview_conversion_result` | Previews the best route without writing files |
+| `explain_conversion` | Explains a route in plain language including tools and tradeoffs |
+| `suggest_conversion` | Recommends output targets for a loose goal like `editable` or `text` |
+| `convert_files` | Converts one or more local files and writes outputs to disk |
+| `smart_convert` | Best-effort conversion from a plain-language goal |
+
+LM Studio launcher scripts for Windows are provided at `mcp/lmstudio-vite.cmd` and `mcp/lmstudio-docker.cmd`. A VS Code launch config is at `.vscode/mcp.json`. A dedicated `docker/MCP.Dockerfile` image is available for running the MCP server inside Docker.
+
+**New npm scripts:** `mcp:start` (Vite-backed), `mcp:dist` (dist-backed), `docker:mcp:build`.
+
+#### 🖥️ UI overhaul (`src/main.ts`, `style.css`, `index.html`)
+
+The front-end has been significantly rewritten:
+
+- **Multi-file support** — the file input now accepts multiple files. Each selected file shows as a dismissible chip in the drop zone with an individual remove button; a **Clear all** link removes them all at once.
+- **"Repos" dropdown** — a button in the side panel opens a menu linking to both this fork and the upstream `p2r3/convert` repository.
+- **"MCP" copy button** — a side panel button lets you pick Vite or Docker mode and copies the correct MCP JSON config snippet to the clipboard.
+- **Mode description tooltip** — a description panel below the side buttons explains what Simple/Advanced mode does.
+- **Animated SVG connection line** — an SVG overlay draws a bezier arc from the selected "Convert from" entry to the selected "Convert to" entry, animated with a gradient stroke.
+- **Search clear buttons** — each search box gets an `×` clear button (`#search-from-clear`, `#search-to-clear`).
+- **Handler tags in Advanced mode** — each format entry in the list shows the handler name as a small tag (e.g. `ffmpeg`, `aseprite`).
+- **Redesigned drop zone** — the hero panel now shows "SELECTED FILES / N files ready" with the file chip list once files are picked.
+
+#### ⚙️ Build & cache pipeline
+
+- **`buildCache.js` rewrite** — new CLI flags: `--url <url>`, `--workers <n>`, `--minify`. Supports seeding from an existing `dist/cache.json` so only stale or missing handler entries are re-warmed. Outputs `dist/cache-report.json` and `dist/cache-errors.log` on errors. Warms handlers in parallel across multiple Puppeteer pages.
+- **`vite.config.js` rewrite** — now auto-discovers top-level handler files and generates a lazy handler manifest; triggers `buildCache.js` on `bun run dev` startup.
+- **`npm run build`** — runs `build:app` (TypeScript + Vite) then `cache:build` in one step. The Docker image pre-generates `dist/cache.json` so the container starts hot.
+- **`npm run docker`** — convenience script that resolves `VITE_COMMIT_SHA` cross-platform before running Docker Compose.
+
+#### 🧩 Example handler
+
+A working reference handler lives at `src/handlers/examples/exampleTextHandler.ts`. It is placed in a nested folder so it does **not** get auto-registered into the app, but serves as a copy-and-extend starting point for new handlers. For details on how handlers work, refer to the doc comments in [src/FormatHandler.ts](src/FormatHandler.ts) and the [Contributing](#contributing) section below.
+
+#### 🔗 New dependencies
+
+| Package | Purpose |
+|---|---|
+| `@modelcontextprotocol/sdk` | MCP server/transport |
+| `zod` | Schema validation for MCP tool inputs |
+| `yaml` | YAML ↔ JSON conversion support |
+
+---
 
 ## Usage
 
-1. Go to [convert.to.it](https://convert.to.it/)
-2. Click the big blue box to add your file (or just drag it on to the window).
-3. An input format should have been automatically selected. If it wasn't, yikes! Try searching for it, or if it's really not there, see the "Issues" section below.
-4. Select an output format from the second list. If you're on desktop, that's the one on the right side. If you're on mobile, it'll be somewhere lower down.
-5. Click **Convert**!
-6. Hopefully, after a bit (or a lot) of thinking, the program will spit out the file you wanted. If not, see the "Issues" section below.
+You can run this fork locally (see [Deployment](#deployment) below).
+
+1. **Add files** — click the drop zone or drag and drop one or more files onto the window. Each file appears as a chip with a `×` dismiss button. Click **Clear all** to remove all at once.
+2. **Input format** — automatically detected from MIME type and extension. Refine it using the search box or by clicking a different entry in the **Convert from** list.
+3. **Output format** — search or scroll the **Convert to** list. An animated arc connects your selected input to the selected output.
+4. **Click Convert** — the converted file(s) are downloaded automatically. A popup shows the full conversion path (e.g. `mp4 → png → bmp`) and which handlers were used.
+
+**Simple vs Advanced mode:**  
+Toggle using the **Simple mode / Advanced mode** button in the side panel.  
+In Simple mode, each format appears once.  
+In Advanced mode, every handler entry shows a handler tag (e.g. `ffmpeg`, `aseprite`) so you can pick the exact backend for each step.
 
 ## Issues
 
@@ -42,7 +113,7 @@ Though please note, "converting X to Y doesn't work" is **not** a bug report.  H
 
 ### Local development (Bun + Vite)
 
-1. Clone this repository ***WITH SUBMODULES***. You can use `git clone --recursive https://github.com/p2r3/convert` for that. Omitting submodules will leave you missing a few dependencies.
+1. Clone this repository ***WITH SUBMODULES***. You can use `git clone --recursive https://github.com/Hamguy21/C2A-UI` for that. Omitting submodules will leave you missing a few dependencies.
 2. Install [Bun](https://bun.sh/).
 3. Run `bun install` to install dependencies.
 4. Run `bun run dev` to start the development server.
