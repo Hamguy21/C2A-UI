@@ -16,41 +16,78 @@ For a semi-technical overview of the upstream project, see: https://youtu.be/btU
 
 ## About this fork
 
-C2A-UI (Convert 2 Any — UI) is a fork of [p2r3/convert](https://github.com/p2r3/convert) that tracks the upstream project closely. The fork is kept up to date with upstream and currently shares the same codebase.
+C2A-UI is a fork of [p2r3/convert](https://github.com/p2r3/convert) that adds an **MCP (Model Context Protocol) server**, a significantly reworked UI, and an improved build and caching pipeline on top of the upstream project. The fork keeps all upstream format handlers and the `TraversionGraph` conversion engine intact.
 
-### What's the same as upstream
+### Changes vs upstream
 
-- All 70+ file format handlers (FFmpeg, ImageMagick, Pandoc, SQLite, MIDI, 3D models, game formats, and more)
-- The `TraversionGraph` engine that chains multiple handlers together to find multi-step conversion routes automatically
-- Simple/Advanced mode UI toggle
-- Docker, Electron, and Bun/Vite deployment options
-- Full conversion test suite
+#### 🤖 MCP server (`mcp/`)
 
-### What this fork tracks / may diverge on
+A full stdio MCP server (`mcp/server.mjs`) lets LLMs and other MCP clients interact with the converter remotely. It launches a headless browser against either a Vite dev server or the Docker container and exposes 10 tools:
 
-| Area | Status |
+| Tool | Description |
 |---|---|
-| Core conversion engine | In sync with upstream |
-| Handler library (70+ formats) | In sync with upstream |
-| UI layout and styling | In sync with upstream |
-| Docker/Nginx config | In sync with upstream |
+| `list_handlers` | Lists registered handlers and their format counts |
+| `list_formats` | Lists supported formats, filterable by direction / handler / MIME |
+| `detect_input_formats` | Ranks likely input formats for a file path, MIME type, or extension |
+| `list_output_options` | Lists reachable output formats for a specific input, ranked by route |
+| `plan_conversion` | Finds a conversion path using the app's traversal logic |
+| `preview_conversion_result` | Previews the best route without writing files |
+| `explain_conversion` | Explains a route in plain language including tools and tradeoffs |
+| `suggest_conversion` | Recommends output targets for a loose goal like `editable` or `text` |
+| `convert_files` | Converts one or more local files and writes outputs to disk |
+| `smart_convert` | Best-effort conversion from a plain-language goal |
 
-> This fork was created to serve as a base for UI-focused experimentation and community contributions. Issues and PRs that may not fit the upstream's scope can be explored here.
+LM Studio launcher scripts for Windows are provided at `mcp/lmstudio-vite.cmd` and `mcp/lmstudio-docker.cmd`. A VS Code launch config is at `.vscode/mcp.json`. A dedicated `docker/MCP.Dockerfile` image is available for running the MCP server inside Docker.
+
+**New npm scripts:** `mcp:start` (Vite-backed), `mcp:dist` (dist-backed), `docker:mcp:build`.
+
+#### 🖥️ UI overhaul (`src/main.ts`, `style.css`, `index.html`)
+
+The front-end has been significantly rewritten:
+
+- **Multi-file support** — the file input now accepts multiple files. Each selected file shows as a dismissible chip in the drop zone with an individual `×` button; a **Clear all** link removes them all at once.
+- **"Repos" dropdown** — a button in the side panel opens a menu linking to both this fork and the upstream `p2r3/convert` repository.
+- **"MCP" copy button** — a side panel button lets you pick Vite or Docker mode and copies the correct MCP JSON config snippet to the clipboard.
+- **Mode description tooltip** — a description panel below the side buttons explains what Simple/Advanced mode does.
+- **Animated SVG connection line** — an SVG overlay draws a bezier arc from the selected "Convert from" entry to the selected "Convert to" entry, animated with a gradient stroke.
+- **Search clear buttons** — each search box gets an `×` clear button (`#search-from-clear`, `#search-to-clear`).
+- **Handler tags in Advanced mode** — each format entry in the list shows the handler name as a small tag (e.g. `ffmpeg`, `aseprite`).
+- **Redesigned drop zone** — the hero panel now shows "SELECTED FILES / N files ready" with the file chip list once files are picked.
+
+#### ⚙️ Build & cache pipeline
+
+- **`buildCache.js` rewrite** — new CLI flags: `--url <url>`, `--workers <n>`, `--minify`. Supports seeding from an existing `dist/cache.json` so only stale or missing handler entries are re-warmed. Outputs `dist/cache-report.json` and `dist/cache-errors.log` on errors. Warms handlers in parallel across multiple Puppeteer pages.
+- **`vite.config.js` rewrite** — now auto-discovers top-level handler files and generates a lazy handler manifest; triggers `buildCache.js` on `bun run dev` startup.
+- **`npm run build`** — runs `build:app` (TypeScript + Vite) then `cache:build` in one step. The Docker image pre-generates `dist/cache.json` so the container starts hot.
+- **`npm run docker`** — convenience script that resolves `VITE_COMMIT_SHA` cross-platform before running Docker Compose.
+
+#### 🧩 Example handler
+
+A working reference handler lives at `src/handlers/examples/exampleTextHandler.ts`. It is placed in a nested folder so it does **not** get auto-registered into the app, but serves as a copy-and-extend starting point for new handlers.
+
+#### 🔗 New dependencies
+
+| Package | Purpose |
+|---|---|
+| `@modelcontextprotocol/sdk` | MCP server/transport |
+| `zod` | Schema validation for MCP tool inputs |
+| `yaml` | YAML ↔ JSON conversion support |
 
 ---
 
 ## Usage
 
-You can run this fork locally (see [Deployment](#deployment) below), or visit the upstream hosted version at [convert.to.it](https://convert.to.it/).
+You can run this fork locally (see [Deployment](#deployment) below).
 
-1. Click the large file-drop area to select your file(s), or drag and drop them onto the window. You can also paste from the clipboard.
-2. An input format is automatically detected. You can refine it using the search box or by clicking a different format button.
-3. Select an output format from the **Convert to:** list.
-4. Click **Convert**!
-5. After processing, the converted file will be downloaded automatically. A summary popup shows the conversion path used (e.g. `mp4 → png → bmp`).
+1. **Add files** — click the drop zone or drag and drop one or more files onto the window. Each file appears as a chip with a `×` dismiss button. Click **Clear all** to remove all at once.
+2. **Input format** — automatically detected from MIME type and extension. Refine it using the search box or by clicking a different entry in the **Convert from** list.
+3. **Output format** — search or scroll the **Convert to** list. An animated arc connects your selected input to the selected output.
+4. **Click Convert** — the converted file(s) are downloaded automatically. A popup shows the full conversion path (e.g. `mp4 → png → bmp`) and which handlers were used.
 
 **Simple vs Advanced mode:**  
-Toggle using the button in the top-right corner. In Simple mode, each format appears once. In Advanced mode, you see which specific handler (tool) handles each format, so you can pick the exact converter for each step.
+Toggle using the **Simple mode / Advanced mode** button in the side panel.  
+In Simple mode, each format appears once.  
+In Advanced mode, every handler entry shows a handler tag (e.g. `ffmpeg`, `aseprite`) so you can pick the exact backend for each step.
 
 ## Issues
 
