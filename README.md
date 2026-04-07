@@ -22,7 +22,7 @@ C2A-UI is a fork of [p2r3/convert](https://github.com/p2r3/convert) that adds an
 
 #### 🤖 MCP server (`mcp/`)
 
-A full stdio MCP server (`mcp/server.mjs`) lets LLMs and other MCP clients interact with the converter remotely. It launches a headless browser against either a Vite dev server or the Docker container and exposes 10 tools:
+A full stdio MCP server (`mcp/server.mjs`) lets LLMs and MCP clients interact with the converter via the Model Context Protocol. It launches a headless browser against either a Vite dev server or the Docker container and exposes 10 tools:
 
 | Tool | Description |
 |---|---|
@@ -45,7 +45,7 @@ LM Studio launcher scripts for Windows are provided at `mcp/lmstudio-vite.cmd` a
 
 The front-end has been significantly rewritten:
 
-- **Multi-file support** — the file input now accepts multiple files. Each selected file shows as a dismissible chip in the drop zone with an individual `×` button; a **Clear all** link removes them all at once.
+- **Multi-file support** — the file input now accepts multiple files. Each selected file shows as a dismissible chip in the drop zone with an individual remove button; a **Clear all** link removes them all at once.
 - **"Repos" dropdown** — a button in the side panel opens a menu linking to both this fork and the upstream `p2r3/convert` repository.
 - **"MCP" copy button** — a side panel button lets you pick Vite or Docker mode and copies the correct MCP JSON config snippet to the clipboard.
 - **Mode description tooltip** — a description panel below the side buttons explains what Simple/Advanced mode does.
@@ -63,7 +63,7 @@ The front-end has been significantly rewritten:
 
 #### 🧩 Example handler
 
-A working reference handler lives at `src/handlers/examples/exampleTextHandler.ts`. It is placed in a nested folder so it does **not** get auto-registered into the app, but serves as a copy-and-extend starting point for new handlers.
+A working reference handler lives at `src/handlers/examples/exampleTextHandler.ts`. It is placed in a nested folder so it does **not** get auto-registered into the app, but serves as a copy-and-extend starting point for new handlers. For details on how handlers work, refer to the doc comments in [src/FormatHandler.ts](src/FormatHandler.ts) and the [Contributing](#contributing) section below.
 
 #### 🔗 New dependencies
 
