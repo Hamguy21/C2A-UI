@@ -1,22 +1,56 @@
-# [Convert to it!](https://convert.to.it/)
-**Truly universal online file converter.**
+# C2A-UI — Convert to Any (UI Fork)
 
-Many online file conversion tools are **boring** and **insecure**. They only allow conversion between two formats in the same medium (images to images, videos to videos, etc.), and they require that you _upload your files to some server_.
+> **This is a community fork of [p2r3/convert](https://github.com/p2r3/convert) — the Convert to it! project.**  
+> Upstream: https://github.com/p2r3/convert  
+> Fork: https://github.com/Hamguy21/C2A-UI
 
-This is not just terrible for privacy, it's also incredibly lame. What if you _really_ need to convert an AVI video to a PDF document? Try to find an online tool for that, I dare you.
+---
 
-[Convert.to.it](https://convert.to.it/) aims to be a tool that "just works". You're almost _guaranteed_ to get an output - perhaps not always the one you expected, but it'll try its best to not leave you hanging.
+![C2A-UI screenshot](https://github.com/user-attachments/assets/0ff54ae0-5f62-4f67-9bdd-1c2439aa752d)
 
-For a semi-technical overview of this tool, check out the video: https://youtu.be/btUbcsTbVA8
+**Truly universal browser-based file converter — no uploads, no servers, fully private.**
+
+Most online file conversion tools only handle files within the same medium (images→images, videos→videos) and require uploading your files to a remote server. C2A-UI inherits the original project's goal: convert **anything to anything**, entirely on-device, in your browser.
+
+For a semi-technical overview of the upstream project, see: https://youtu.be/btUbcsTbVA8
+
+## About this fork
+
+C2A-UI (Convert 2 Any — UI) is a fork of [p2r3/convert](https://github.com/p2r3/convert) that tracks the upstream project closely. The fork is kept up to date with upstream and currently shares the same codebase.
+
+### What's the same as upstream
+
+- All 70+ file format handlers (FFmpeg, ImageMagick, Pandoc, SQLite, MIDI, 3D models, game formats, and more)
+- The `TraversionGraph` engine that chains multiple handlers together to find multi-step conversion routes automatically
+- Simple/Advanced mode UI toggle
+- Docker, Electron, and Bun/Vite deployment options
+- Full conversion test suite
+
+### What this fork tracks / may diverge on
+
+| Area | Status |
+|---|---|
+| Core conversion engine | In sync with upstream |
+| Handler library (70+ formats) | In sync with upstream |
+| UI layout and styling | In sync with upstream |
+| Docker/Nginx config | In sync with upstream |
+
+> This fork was created to serve as a base for UI-focused experimentation and community contributions. Issues and PRs that may not fit the upstream's scope can be explored here.
+
+---
 
 ## Usage
 
-1. Go to [convert.to.it](https://convert.to.it/)
-2. Click the big blue box to add your file (or just drag it on to the window).
-3. An input format should have been automatically selected. If it wasn't, yikes! Try searching for it, or if it's really not there, see the "Issues" section below.
-4. Select an output format from the second list. If you're on desktop, that's the one on the right side. If you're on mobile, it'll be somewhere lower down.
-5. Click **Convert**!
-6. Hopefully, after a bit (or a lot) of thinking, the program will spit out the file you wanted. If not, see the "Issues" section below.
+You can run this fork locally (see [Deployment](#deployment) below), or visit the upstream hosted version at [convert.to.it](https://convert.to.it/).
+
+1. Click the large file-drop area to select your file(s), or drag and drop them onto the window. You can also paste from the clipboard.
+2. An input format is automatically detected. You can refine it using the search box or by clicking a different format button.
+3. Select an output format from the **Convert to:** list.
+4. Click **Convert**!
+5. After processing, the converted file will be downloaded automatically. A summary popup shows the conversion path used (e.g. `mp4 → png → bmp`).
+
+**Simple vs Advanced mode:**  
+Toggle using the button in the top-right corner. In Simple mode, each format appears once. In Advanced mode, you see which specific handler (tool) handles each format, so you can pick the exact converter for each step.
 
 ## Issues
 
@@ -42,7 +76,7 @@ Though please note, "converting X to Y doesn't work" is **not** a bug report.  H
 
 ### Local development (Bun + Vite)
 
-1. Clone this repository ***WITH SUBMODULES***. You can use `git clone --recursive https://github.com/p2r3/convert` for that. Omitting submodules will leave you missing a few dependencies.
+1. Clone this repository ***WITH SUBMODULES***. You can use `git clone --recursive https://github.com/Hamguy21/C2A-UI` for that. Omitting submodules will leave you missing a few dependencies.
 2. Install [Bun](https://bun.sh/).
 3. Run `bun install` to install dependencies.
 4. Run `bunx vite` to start the development server.
