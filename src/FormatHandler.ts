@@ -160,6 +160,17 @@ export interface FileData {
 export interface FormatHandler {
   /** Name of the tool being wrapped (e.g. "FFmpeg"). */
   name: string;
+  /**
+   * Registry-provided cache version for supported format metadata.
+   * When this changes, cached supported formats are regenerated automatically.
+   */
+  cacheVersion?: string;
+  /**
+   * Optional registry priority.
+   * Higher values are registered earlier and therefore preferred when all
+   * other pathfinding costs are equal.
+   */
+  priority?: number;
   /** List of supported input/output {@link FileFormat}s. */
   supportedFormats?: FileFormat[];
 

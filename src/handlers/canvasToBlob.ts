@@ -1,6 +1,49 @@
 import CommonFormats from "src/CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
-import { imageToText, rgbaToGrayscale } from "./image-to-txt/src/convert.ts";
+
+type GrayscaleImage = {
+  width: () => number;
+  height: () => number;
+  getPixel: (x: number, y: number) => number;
+};
+
+function rgbaToGrayscale (red: number, green: number, blue: number, alpha: number): number {
+  const blended = (1 - alpha) + alpha * (0.299 * red + 0.587 * green + 0.114 * blue);
+  return Math.max(0, Math.min(1, blended));
+}
+
+function imageToText (image: GrayscaleImage): string {
+  const ramp = "@%#*+=-:. ";
+  const width = image.width();
+  const height = image.height();
+  const sampleWidth = Math.max(1, Math.floor(width / 120));
+  const sampleHeight = Math.max(1, Math.floor(sampleWidth * 2));
+  const rows: string[] = [];
+
+  for (let y = 0; y < height; y += sampleHeight) {
+    let row = "";
+
+    for (let x = 0; x < width; x += sampleWidth) {
+      let total = 0;
+      let samples = 0;
+
+      for (let sampleY = y; sampleY < Math.min(y + sampleHeight, height); sampleY++) {
+        for (let sampleX = x; sampleX < Math.min(x + sampleWidth, width); sampleX++) {
+          total += image.getPixel(sampleX, sampleY);
+          samples++;
+        }
+      }
+
+      const value = samples === 0 ? 1 : total / samples;
+      const index = Math.min(ramp.length - 1, Math.floor(value * (ramp.length - 1)));
+      row += ramp[index];
+    }
+
+    rows.push(row.trimEnd());
+  }
+
+  return rows.join("\n");
+}
 
 class canvasToBlobHandler implements FormatHandler {
 

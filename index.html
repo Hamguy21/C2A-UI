@@ -19,23 +19,46 @@
 </head>
 <body>
 
-  <input id="file-input" type="file">
+  <input id="file-input" type="file" multiple>
 
-  <a id="commit-id" href="https://github.com/p2r3/convert"></a>
-
-  <div id="file-area">
-    <h2>Click to add your file</h2>
-    <p id="drop-hint-text">or drag and drop it here</p>
-  </div>
-  <div id="side-panel">
-    <button id="mode-button">Advanced mode</button>
+  <div id="hero-panel">
+    <div id="file-area">
+      <div id="file-drop-zone">
+        <p class="eyebrow">Private, on-device conversion</p>
+        <h2>Click to add your file</h2>
+        <p id="drop-hint-text">or drag and drop it here</p>
+      </div>
+    </div>
+    <div id="side-panel">
+      <button id="mode-button">Simple mode</button>
+      <div id="side-actions">
+        <div id="repo-menu-container">
+          <button id="repo-links-button" type="button" aria-haspopup="true" aria-expanded="false">Repos</button>
+          <div id="repo-links-menu" hidden>
+            <a href="https://github.com/Hamguy21/C2A-UI" target="_blank" rel="noreferrer">Hamguy21/C2A-UI</a>
+            <a href="https://github.com/p2r3/convert" target="_blank" rel="noreferrer">p2r3/convert</a>
+          </div>
+        </div>
+        <div id="mcp-menu-container">
+          <button id="mcp-copy-button" type="button" aria-haspopup="true" aria-expanded="false">MCP</button>
+          <div id="mcp-menu" hidden>
+            <button type="button" data-mcp-mode="vite">Vite</button>
+            <button type="button" data-mcp-mode="docker">Docker</button>
+          </div>
+        </div>
+      </div>
+      <p id="mode-description">Simple mode groups formats together. Switch to advanced mode when you want to pick a specific backend or compare multiple tools that support the same format.</p>
+    </div>
   </div>
 
   <div id="format-containers">
 
     <div id="from-container" class="format-container">
       <h2>Convert from:</h2>
-      <input type="text" id="search-from" class="search" placeholder="Search">
+      <div class="search-row">
+        <input type="text" id="search-from" class="search" placeholder="Search">
+        <button type="button" id="search-from-clear" class="search-clear" aria-label="Clear convert from search">&times;</button>
+      </div>
       <div id="from-list" class="format-list">
 
       </div>
@@ -43,7 +66,10 @@
 
     <div id="to-container" class="format-container">
       <h2>Convert to:</h2>
-      <input type="text" id="search-to" class="search" placeholder="Search">
+      <div class="search-row">
+        <input type="text" id="search-to" class="search" placeholder="Search">
+        <button type="button" id="search-to-clear" class="search-clear" aria-label="Clear convert to search">&times;</button>
+      </div>
       <div id="to-list" class="format-list">
 
       </div>
@@ -51,11 +77,25 @@
 
   </div>
 
+  <svg id="selection-graph" aria-hidden="true" viewBox="0 0 1 1" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="selection-edge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#4f46e5"></stop>
+        <stop offset="100%" stop-color="#2563eb"></stop>
+      </linearGradient>
+      <marker id="selection-edge-arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M 0 1 L 10 6 L 0 11" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+      </marker>
+    </defs>
+    <path id="selection-edge-glow"></path>
+    <path id="selection-edge"></path>
+  </svg>
+
   <button id="convert-button" class="disabled">Convert</button>
 
   <div id="popup-bg"></div>
   <div id="popup">
-    <h2>Loading tools...</h2>
+    <h2>Loading formats...</h2>
   </div>
 
   <script type="module" src="src/main.ts"></script>

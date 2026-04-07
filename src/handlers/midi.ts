@@ -5,6 +5,7 @@ import CommonFormats from "src/CommonFormats.ts";
 const SAMPLE_RATE = 44100;
 const BUFFER_FRAMES = 4096;
 const TAIL_CHUNKS_MAX = 100; // up to ~9s of reverb tail
+const FLUID_SYNTH_MODULE_GLOBAL = "__convertFluidSynthModule";
 
 // Cache script-load promises so each URL is only ever loaded once.
 // Classic scripts use `let` at the top level, which cannot be redeclared
@@ -35,26 +36,28 @@ function loadFluidSynth(): Promise<{ JSSynth: any; sfontBin: ArrayBuffer }> {
       // Fix: fetch libfluidsynth content and import it via a Blob URL as an ES module.
       // Module-scoped class declarations dont pollute the global scope.
       //
-      // The Emscripten init pattern still works because modules have access to the
-      // global scope chain, so "typeof Module != 'undefined'" finds globalThis.Module.
+      // The Emscripten init pattern still works because we rewrite its bootstrap
+      // line to read a dedicated global instead of the shared `Module` symbol.
       let fluidModuleResolve!: (mod: unknown) => void;
       const fluidModuleReady = new Promise<unknown>(r => { fluidModuleResolve = r; });
-      (globalThis as any).Module = {
+      (globalThis as any)[FLUID_SYNTH_MODULE_GLOBAL] = {
         onRuntimeInitialized(this: unknown) { fluidModuleResolve(this); }
       };
 
       let fluidSrc = await fetch("/convert/wasm/libfluidsynth-2.4.6.js").then(r => r.text());
-      // In an ES module, "var Module" is hoisted to "undefined", shadowing globalThis.Module.
-      // Patch the Emscripten init line so it reads from globalThis explicitly.
+      // In an ES module, `var Module` is hoisted to `undefined`, shadowing globals.
+      // Patch the Emscripten init line so this runtime uses an isolated global and
+      // cannot collide with other Emscripten handlers warming in parallel.
       fluidSrc = fluidSrc.replace(
         'var Module=typeof Module!="undefined"?Module:{}',
-        'var Module=globalThis.Module||{}'
+        `var Module=globalThis.${FLUID_SYNTH_MODULE_GLOBAL}||{}`
       );
       const blob = new Blob([fluidSrc], { type: "text/javascript" });
       const blobUrl = URL.createObjectURL(blob);
       await import(/* @vite-ignore */ blobUrl);
       URL.revokeObjectURL(blobUrl);
       const fluidModule = await fluidModuleReady;
+      delete (globalThis as any)[FLUID_SYNTH_MODULE_GLOBAL];
 
       await loadScript("/convert/wasm/js-synthesizer.js");
 
