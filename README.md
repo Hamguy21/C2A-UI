@@ -79,13 +79,25 @@ Though please note, "converting X to Y doesn't work" is **not** a bug report.  H
 1. Clone this repository ***WITH SUBMODULES***. You can use `git clone --recursive https://github.com/Hamguy21/C2A-UI` for that. Omitting submodules will leave you missing a few dependencies.
 2. Install [Bun](https://bun.sh/).
 3. Run `bun install` to install dependencies.
-4. Run `bunx vite` to start the development server.
+4. Run `bun run dev` to start the development server.
+
+For a production-style build, run `npm run build`. That now builds the app and generates `dist/cache.json` automatically.
+
+When Vite starts in development, it also kicks off `buildCache.js` against the live dev server. If `dist/cache.json` is missing, it gets created. If it already exists, it is reused as a seed and each handler cache entry is checked against a registry hash, so new or changed handlers are refreshed automatically.
+
+`buildCache.js` now warms stale handlers across multiple Puppeteer pages by default. You can override the fan-out with `--workers <count>` if you want to tune cache-build parallelism.
 
 _The following steps are optional, but recommended for performance:_
 
-When you first open the page, it'll take a while to generate the list of supported formats for each tool. If you open the console, you'll see it complaining a bunch about missing caches.
+When you first open the page without a fresh cache, it may need to warm missing handler entries before the format lists are fully available. If you open the console, you'll see logs for any missing or refreshed cache entries.
 
-After this is done (indicated by a `Built initial format list` message in the console), use `printSupportedFormatCache()` to get a JSON string with the cache data. You can then save this string to `cache.json` to skip that loading screen on startup.
+To regenerate the cache manually, run `npm run cache:build`.
+
+If `dist/cache.json` already exists, the cache build step reuses it as a seed. That means only handlers missing from the cache, or handlers whose source changed, need to initialize during regeneration.
+
+`printSupportedFormatCache()` still exists for debugging, but you should not need to manually copy its output during normal development.
+
+If cache generation hits handler or page errors, the build writes `dist/cache-report.json` and `dist/cache-errors.log`. On the next app load, the UI shows a popup pointing to the log file.
 
 If you run into issues where your changes seem to not be applying, try disabling this cache.
 
@@ -109,68 +121,187 @@ Use the override file to build the image locally:
 docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml up --build -d
 ```
 
+Or use the repo script, which resolves `VITE_COMMIT_SHA` in a cross-platform way:
+
+```bash
+npm run docker
+```
+
 The first Docker build is expected to be slow because Chromium and related system packages are installed in the build stage (needed for puppeteer in `buildCache.js`). Later builds are usually much faster due to Docker layer caching.
+
+The local Docker image builds the app and pre-generates `dist/cache.json`, so the container starts with the supported-format cache already available.
+
+## MCP
+
+This repository now includes a stdio MCP server so remote tools and LLMs can inspect supported formats, plan conversion routes, and run conversions through the real browser-based app.
+
+### Start the server
+
+1. Start MCP in development mode: `npm run mcp:start`
+
+By default, the MCP server now starts its own Vite dev server automatically and connects to that live app.
+
+If you already have the Docker container running on `http://127.0.0.1:8080/convert/`, start MCP against that served app with `node ./mcp/server.mjs --docker`.
+
+When `convert_files` is called without `outputDir`, MCP now writes outputs into a sibling `converted/` folder next to the first input file instead of writing back into the source file's directory root.
+
+If you want to use the built app in `dist/` instead, run:
+
+1. Build the app: `npm run build`
+2. Start MCP against `dist/`: `npm run mcp:dist`
+
+The server launches a headless browser against either Vite or the built app and exposes these MCP tools:
+
+- `list_handlers`: lists registered handlers and their format counts.
+- `list_formats`: lists supported formats, optionally filtered by direction, handler, MIME type, or format name.
+- `detect_input_formats`: ranks likely input formats for a file path, MIME type, or extension.
+- `list_output_options`: lists only the reachable output formats for a specific input, ranked by route quality.
+- `plan_conversion`: finds a conversion path between two formats using the app's traversal logic.
+- `preview_conversion_result`: previews the best route, output metadata, and route characteristics without writing files.
+- `explain_conversion`: explains the selected route in plain language, including tools used and likely tradeoffs.
+- `suggest_conversion`: recommends a short ranked list of output targets for a loose goal like `editable`, `text`, or `png`.
+- `convert_files`: converts one or more local files and writes the outputs to disk.
+- `smart_convert`: performs a best-effort conversion directly from a loose user goal such as `png`, `text`, or `openable on Windows`.
+
+### VS Code MCP config
+
+There is also a ready-to-use config in `.vscode/mcp.json` that runs `node ./mcp/server.mjs --vite`, so MCP comes up with Vite automatically without relying on shell-specific `npm` spawning behavior.
+
+### LM Studio on Windows
+
+LM Studio usually starts MCP servers outside the repository root, so a relative script path like `./mcp/server.mjs` can fail with "not found" even though the file exists.
+
+Use one of these launcher scripts instead:
+
+- `mcp/lmstudio-docker.cmd`
+- `mcp/lmstudio-vite.cmd`
+
+If you want LM Studio to launch the MCP server through Docker instead of a host file path, build the MCP image first:
+
+```bash
+npm run docker:mcp:build
+```
+
+Then use a config entry like this:
+
+```json
+"convert-to-it": {
+  "command": "docker",
+  "args": [
+    "run",
+    "--rm",
+    "-i",
+    "--add-host",
+    "host.docker.internal:host-gateway",
+    "-e",
+    "CONVERT_DOCKER_APP_URL=http://host.docker.internal:8080/convert",
+    "convert-mcp:dev"
+  ],
+  "env": {}
+}
+```
+
+That Docker-based MCP entry expects the web app container to already be running on `http://127.0.0.1:8080/convert/`.
+
+The `convert-mcp` Docker image is optional. Docker Compose now starts only the main `convert` web app container by default; build or run `convert-mcp:dev` only when an external MCP client specifically needs a Docker-launched stdio server.
+
+On Windows, point LM Studio at the wrapper script by using the absolute path to your local clone. For example:
+
+```text
+C:\path\to\convert\mcp\lmstudio-docker.cmd
+```
+
+Use the Vite-backed launcher instead if you want MCP to start its own dev server:
+
+```text
+C:\path\to\convert\mcp\lmstudio-vite.cmd
+```
+
+If LM Studio asks for arguments, leave them empty when using these wrapper scripts.
+
+> [!NOTE]
+> The MCP server depends on Puppeteer. The development path does not require `dist/`; only `npm run mcp:dist` does.
 
 ## Contributing
 
 The best way to contribute is by adding support for new file formats (duh). If you don't have a format to add but are eager to help, take a look at our issues. There are plenty of suggestions there.
 
-Here's how adding a format works works:
+Here's how adding a format works:
 
 ### Creating a handler
 
 Each "tool" used for conversion has to be normalized to a standard form - effectively a "wrapper" that abstracts away the internal processes. These wrappers are available in [src/handlers](src/handlers/).
 
-Below is a super barebones handler that does absolutely nothing. You can use this as a starting point for adding a new format:
+There is now a working example handler at [src/handlers/examples/exampleTextHandler.ts](src/handlers/examples/exampleTextHandler.ts). It is intentionally placed in a nested folder so it does **not** get auto-registered into the app.
+
+If you want to add a real handler, copy that file into a new **top-level** file under [src/handlers](src/handlers/) and then rename it for your format/tool.
+
+The current workflow is:
+
+1. Create a new top-level file in [src/handlers](src/handlers/), for example `myFormat.ts`.
+2. Export a valid `FormatHandler` from that file. A default-exported class is the simplest pattern.
+3. Give the handler a unique `name`, fill `supportedFormats` in `init()`, and implement `doConvert()`.
+4. Run `npm run build:app` to confirm the file is discovered by the lazy manifest generator in [vite.config.js](vite.config.js).
+5. Run `npm run build` before shipping if you want to regenerate `dist/cache.json` as well.
+
+Important details:
+
+- Only **top-level** files in [src/handlers](src/handlers/) are auto-discovered. Nested folders are safe for examples, vendored assets, helper code, and submodules.
+- A handler will not appear in the format lists unless `init()` publishes at least one `supportedFormats` entry.
+- The app now warms handlers that are **missing** from the supported-format cache before building the UI lists, so newly added handlers still appear even if an older cache exists.
+
+Below is a minimal starting point based on the example handler:
 
 ```ts
-// file: dummy.ts
+// file: myFormat.ts
 
-import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
+import { FormatDefinition, type FileData, type FileFormat, type FormatHandler } from "../FormatHandler.ts";
 import CommonFormats from "src/CommonFormats.ts";
 
-class dummyHandler implements FormatHandler {
+const MY_FORMAT = new FormatDefinition(
+  "My Custom Text Format",
+  "myfmt",
+  "myfmt",
+  "text/x-my-format",
+  "text"
+);
 
-  public name: string = "dummy";
+class myFormatHandler implements FormatHandler {
+  public name = "myFormat";
   public supportedFormats?: FileFormat[];
-  public ready: boolean = false;
+  public ready = false;
 
   async init () {
     this.supportedFormats = [
-      // Example PNG format, with both input and output disabled
-      CommonFormats.PNG.builder("png")
+      CommonFormats.TEXT.builder("text")
         .markLossless()
-        .allowFrom(false)
-        .allowTo(false),
-
-      // Alternatively, if you need a custom format, define it like so:
-      {
-        name: "CompuServe Graphics Interchange Format (GIF)",
-        format: "gif",
-        extension: "gif",
-        mime: "image/gif",
-        from: false,
-        to: false,
-        internal: "gif",
-        category: ["image", "video"],
-        lossless: false
-      },
+        .allowFrom(true)
+        .allowTo(true),
+      MY_FORMAT.builder("myfmt")
+        .markLossless()
+        .allowFrom(true)
+        .allowTo(true)
     ];
     this.ready = true;
   }
 
   async doConvert (
     inputFiles: FileData[],
-    inputFormat: FileFormat,
+    _inputFormat: FileFormat,
     outputFormat: FileFormat
   ): Promise<FileData[]> {
-    const outputFiles: FileData[] = [];
-    return outputFiles;
-  }
+    return inputFiles.map(file => {
+      const source = new TextDecoder().decode(file.bytes);
 
+      return {
+        name: `${file.name.split(".").slice(0, -1).join(".") || file.name}.${outputFormat.extension}`,
+        bytes: new TextEncoder().encode(source)
+      };
+    });
+  }
 }
 
-export default dummyHandler;
+export default myFormatHandler;
 ```
 
 For more details on how all of these components work, refer to the doc comments in [src/FormatHandler.ts](src/FormatHandler.ts). You can also take a look at existing handlers to get a more practical example.

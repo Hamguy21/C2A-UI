@@ -1,7 +1,47 @@
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
 import CommonFormats from "src/CommonFormats.ts";
-import { Decrypter } from "./rpgmvp-decrypter/scripts/Decrypter.js";
-import { RPGFile } from "./rpgmvp-decrypter/scripts/RPGFile.js";
+
+const RPG_MAKER_HEADER_LENGTH = 16;
+const RPG_MAKER_FAKE_HEADER = new Uint8Array([
+    0x52, 0x50, 0x47, 0x4d, 0x56, 0x00, 0x00, 0x00,
+    0x00, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00
+]);
+const PNG_HEADER = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52
+]);
+
+function getKeyFromEncryptedPng(bytes: Uint8Array): Uint8Array {
+    if (bytes.length < RPG_MAKER_HEADER_LENGTH * 2) {
+        throw new Error("RPGMVP file is too short to contain an encryption header.");
+    }
+
+    const key = new Uint8Array(RPG_MAKER_HEADER_LENGTH);
+    for (let index = 0; index < RPG_MAKER_HEADER_LENGTH; index++) {
+        key[index] = bytes[RPG_MAKER_HEADER_LENGTH + index] ^ PNG_HEADER[index];
+    }
+
+    return key;
+}
+
+function decryptRpgmvp(bytes: Uint8Array, key: Uint8Array): Uint8Array {
+    if (bytes.length < RPG_MAKER_HEADER_LENGTH) {
+        throw new Error("RPGMVP file is too short to decrypt.");
+    }
+
+    for (let index = 0; index < RPG_MAKER_HEADER_LENGTH; index++) {
+        if (bytes[index] !== RPG_MAKER_FAKE_HEADER[index]) {
+            throw new Error("Invalid RPGMVP header.");
+        }
+    }
+
+    const output = bytes.slice(RPG_MAKER_HEADER_LENGTH);
+    for (let index = 0; index < Math.min(RPG_MAKER_HEADER_LENGTH, output.length); index++) {
+        output[index] ^= key[index];
+    }
+
+    return output;
+}
 
 class rpgmvpHandler implements FormatHandler {
 
@@ -40,22 +80,12 @@ class rpgmvpHandler implements FormatHandler {
         }
 
         for (const inputFile of inputFiles) {
-            const as_buffer = inputFile.bytes.buffer as ArrayBuffer;
+            const bytes = inputFile.bytes;
+            const encryptionKey = getKeyFromEncryptedPng(bytes);
+            const decryptedBytes = decryptRpgmvp(bytes, encryptionKey);
+            const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
 
-            const encryption_key = Decrypter.getKeyFromPNG(16, as_buffer);
-            const decrypter = new Decrypter(encryption_key);
-
-            let file = new RPGFile(new File([as_buffer], inputFile.name), null);
-            decrypter.decryptFile(file, (file: RPGFile, e: Error) => {
-                if (e) {
-                    throw e;
-                }
-
-                const bytes = new Uint8Array(file.content);
-                const name = inputFile.name.split(".").slice(0, -1).join(".") + "." + outputFormat.extension;
-
-                outputFiles.push({ bytes, name });
-            });
+            outputFiles.push({ bytes: decryptedBytes, name });
         }
 
         return outputFiles;

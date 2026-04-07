@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "convert-to-it": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "./mcp/server.mjs",
+        "--vite"
+      ]
+    }
+  }
+}

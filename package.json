@@ -9,14 +9,19 @@
   "main": "src/electron.cjs",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build:app": "tsc && vite build",
+    "build": "npm run build:app && npm run cache:build",
+    "mcp:start": "node ./mcp/server.mjs --vite",
+    "mcp:dist": "node ./mcp/server.mjs",
     "cache:build": "bun run buildCache.js dist/cache.json --minify",
     "cache:build:dev": "bun run buildCache.js dist/cache.json",
     "preview": "vite preview",
     "docker": "bun run docker:build && bun run docker:up",
-    "docker:build": "docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml build --build-arg VITE_COMMIT_SHA=$(git rev-parse HEAD)",
+    "docker:build": "node ./docker/build-local.mjs",
+    "docker:mcp:build": "docker build -f docker/MCP.Dockerfile -t convert-mcp:dev .",
     "docker:up": "docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml up -d",
-    "desktop:build": "tsc && IS_DESKTOP=true vite build && bun run cache:build",
+    "desktop:build:app": "tsc && IS_DESKTOP=true vite build",
+    "desktop:build": "npm run desktop:build:app && npm run cache:build",
     "desktop:preview": "electron .",
     "desktop:start": "bun run desktop:build && bun run desktop:preview",
     "desktop:dist:win": "bun run desktop:build && electron-builder --win --publish never",
@@ -54,7 +59,6 @@
     "vite-tsconfig-paths": "^6.0.5"
   },
   "dependencies": {
-    "7z-wasm": "^1.2.0",
     "@bjorn3/browser_wasi_shim": "^0.4.2",
     "@bokuweb/zstd-wasm": "^0.0.27",
     "@ffmpeg/core": "^0.12.10",
@@ -62,6 +66,7 @@
     "@ffmpeg/util": "^0.12.2",
     "@flo-audio/reflo": "^0.1.2",
     "@imagemagick/magick-wasm": "^0.0.37",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@myriaddreamin/typst-ts-renderer": "^0.7.0-rc2",
     "@myriaddreamin/typst-ts-web-compiler": "^0.7.0-rc2",
     "@myriaddreamin/typst.ts": "^0.7.0-rc2",
@@ -73,6 +78,7 @@
     "@types/pako": "^2.0.4",
     "@types/papaparse": "^5.5.2",
     "@types/three": "^0.182.0",
+    "7z-wasm": "^1.2.0",
     "bson": "^7.2.0",
     "celaria-formats": "^1.0.2",
     "chess.js": "^1.4.0",
@@ -105,6 +111,7 @@
     "wabt": "^1.0.39",
     "wavefile": "^11.0.0",
     "woff2-encoder": "^2.0.0",
-    "yaml": "^2.8.2"
+    "yaml": "^2.8.2",
+    "zod": "^4.3.6"
   }
 }
